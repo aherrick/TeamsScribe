@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace TeamsScribe.Helpers;
 
 // Derives friendly meeting titles and filesystem-safe folder names.
-static class MeetingNaming
+static partial class MeetingNaming
 {
     // Human-readable meeting title from the Teams window, or null if unavailable.
     public static string Title(Process teams)
@@ -31,7 +31,7 @@ static class MeetingNaming
         if (string.IsNullOrWhiteSpace(title))
             return stamp;
 
-        var slug = Regex.Replace(title, @"[^\w\- ]", "").Trim().Replace(' ', '-');
+        var slug = InvalidFolderNameChars().Replace(title, "").Trim().Replace(' ', '-');
 
         if (slug.Length > 50)
             slug = slug[..50];
@@ -50,4 +50,7 @@ static class MeetingNaming
         {
         }
     }
+
+    [GeneratedRegex(@"[^\w\- ]")]
+    private static partial Regex InvalidFolderNameChars();
 }
