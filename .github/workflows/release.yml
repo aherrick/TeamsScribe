@@ -20,9 +20,12 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - run: dotnet publish TeamsScribe.csproj -c Release -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:Version=${{ env.VERSION }} -o publish
+      - run: dotnet publish TeamsScribe.csproj -c Release -p:Version=${{ env.VERSION }} -o publish
+
+      # Foundry Local / ONNX ship native DLLs beside the exe, so release the whole folder.
+      - run: Compress-Archive -Path publish/* -DestinationPath TeamsScribe-v${{ env.VERSION }}.zip
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION }}
-          files: publish/TeamsScribe.exe
+          files: TeamsScribe-v${{ env.VERSION }}.zip
