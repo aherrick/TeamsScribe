@@ -1,6 +1,6 @@
-﻿using System.Diagnostics;
-using System.Text.RegularExpressions;
-using TeamsScribe;
+﻿using TeamsScribe.Helpers;
+using TeamsScribe.Models;
+using TeamsScribe.Services;
 
 const string RecordingsFolder = "recordings";
 
@@ -20,9 +20,7 @@ Console.WriteLine("Watching for Teams meetings...");
 Console.WriteLine("Press Ctrl+C to quit.");
 
 Recorder recorder = null;
-string meetingFolder = null;
-string meetingTitle = null;
-DateTime meetingStart = default;
+Meeting meeting = null;
 int misses = 0;
 
 while (!cts.IsCancellationRequested)
@@ -35,13 +33,15 @@ while (!cts.IsCancellationRequested)
 
         if (teams != null)
         {
-            meetingStart = DateTime.Now;
-            meetingTitle = MeetingTitle(teams);
-            meetingFolder = Path.Combine(RecordingsFolder, MeetingName(meetingStart, meetingTitle));
-            Directory.CreateDirectory(meetingFolder);
+            var start = DateTime.Now;
+            var title = MeetingNaming.Title(teams);
+            var folder = Path.Combine(RecordingsFolder, MeetingNaming.FolderName(start, title));
+            Directory.CreateDirectory(folder);
+
+            meeting = new Meeting(title, folder, start);
 
             recorder = new Recorder();
-            await recorder.StartAsync(meetingFolder, teams.Id);
+            await recorder.StartAsync(folder, teams.Id);
 
             Console.WriteLine("Teams meeting detected. Recording...");
         }
@@ -53,7 +53,7 @@ while (!cts.IsCancellationRequested)
     }
     else if (recorder != null && ++misses >= 5) // ~10s of silence = meeting ended
     {
-        await ProcessMeetingAsync(recorder, meetingFolder, meetingTitle, meetingStart);
+        await ProcessMeetingAsync(recorder, meeting);
         recorder = null;
 
         Console.WriteLine();
@@ -73,10 +73,10 @@ while (!cts.IsCancellationRequested)
 if (recorder != null)
 {
     Console.WriteLine("Quitting - finishing current recording...");
-    await ProcessMeetingAsync(recorder, meetingFolder, meetingTitle, meetingStart);
+    await ProcessMeetingAsync(recorder, meeting);
 }
 
-static async Task ProcessMeetingAsync(Recorder recorder, string folder, string title, DateTime start)
+static async Task ProcessMeetingAsync(Recorder recorder, Meeting meeting)
 {
     const int MinMeetingSeconds = 30;
 
@@ -85,67 +85,22 @@ static async Task ProcessMeetingAsync(Recorder recorder, string folder, string t
         await recorder.StopAsync();
 
         var end = DateTime.Now;
-        var duration = end - start;
+        var duration = end - meeting.Start;
 
         if (duration.TotalSeconds < MinMeetingSeconds)
         {
             Console.WriteLine($"Skipping short meeting ({duration.TotalSeconds:F0}s).");
-            TryDelete(folder);
+            MeetingNaming.TryDelete(meeting.Folder);
             return;
         }
 
         Console.WriteLine("Meeting ended. Transcribing...");
-        await Transcriber.TranscribeAsync(folder);
-        await Summarizer.SummarizeAsync(folder, title, start, end);
-        Console.WriteLine("Done: " + folder);
+        await Transcriber.TranscribeAsync(meeting.Folder);
+        await Summarizer.SummarizeAsync(meeting.Folder, meeting.Title, meeting.Start, end);
+        Console.WriteLine("Done: " + meeting.Folder);
     }
     catch (Exception ex)
     {
         Console.WriteLine("Failed to process meeting: " + ex.Message);
-    }
-}
-
-// Human-readable meeting title from the Teams window, or null if unavailable.
-static string MeetingTitle(Process teams)
-{
-    string title = null;
-    try { title = teams.MainWindowTitle; } catch { }
-
-    if (string.IsNullOrWhiteSpace(title))
-        return null;
-
-    // Teams titles look like "Meeting name | Microsoft Teams".
-    title = title.Split('|')[0].Trim();
-
-    return string.IsNullOrWhiteSpace(title)
-        || title.Equals("Microsoft Teams", StringComparison.OrdinalIgnoreCase)
-        ? null
-        : title;
-}
-
-static string MeetingName(DateTime start, string title)
-{
-    var stamp = start.ToString("yyyy-MM-dd_HH-mm-ss");
-
-    if (string.IsNullOrWhiteSpace(title))
-        return stamp;
-
-    var slug = Regex.Replace(title, @"[^\w\- ]", "").Trim().Replace(' ', '-');
-
-    if (slug.Length > 50)
-        slug = slug[..50];
-
-    return string.IsNullOrWhiteSpace(slug) ? stamp : $"{stamp}_{slug}";
-}
-
-static void TryDelete(string folder)
-{
-    try
-    {
-        if (Directory.Exists(folder))
-            Directory.Delete(folder, true);
-    }
-    catch
-    {
     }
 }

@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Win32;
 
-namespace TeamsScribe;
+namespace TeamsScribe.Services;
 
 static class TeamsDetector
 {

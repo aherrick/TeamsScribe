@@ -3,7 +3,7 @@ using Betalgo.Ranul.OpenAI.ObjectModels.RequestModels;
 using Microsoft.AI.Foundry.Local;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace TeamsScribe;
+namespace TeamsScribe.Services;
 
 internal static class Summarizer
 {

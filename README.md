@@ -1,5 +1,7 @@
 # TeamsScribe
 
+[![Build](https://github.com/aherrick/TeamsScribe/actions/workflows/build.yml/badge.svg)](https://github.com/aherrick/TeamsScribe/actions/workflows/build.yml)
+
 Automatically records, transcribes, and summarizes your Microsoft Teams meetings — entirely on your local machine.
 
 TeamsScribe runs in the background watching for Teams calls. When a meeting starts it captures both sides of the audio, and when it ends it produces a speaker-labeled transcript and an AI-generated summary. Transcription (Whisper) and summarization (Phi-4 via Foundry Local) run locally, so audio never leaves your PC.

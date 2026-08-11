@@ -1,6 +1,7 @@
 using NAudio.Wave;
+using TeamsScribe.Models;
 
-namespace TeamsScribe;
+namespace TeamsScribe.Services;
 
 // Records Teams (per-process loopback) and the mic as two 16 kHz mono tracks.
 sealed class Recorder

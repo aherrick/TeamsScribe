@@ -1,7 +1,8 @@
 using Whisper.net;
 using Whisper.net.Ggml;
+using TeamsScribe.Models;
 
-namespace TeamsScribe;
+namespace TeamsScribe.Services;
 
 static class Transcriber
 {
@@ -36,10 +37,10 @@ static class Transcriber
         }
     }
 
-    private static async Task<List<(TimeSpan Start, string Speaker, string Text)>> CollectTracks(
+    private static async Task<List<TranscriptSegment>> CollectTracks(
         WhisperProcessor processor, string folder)
     {
-        var segments = new List<(TimeSpan Start, string Speaker, string Text)>();
+        var segments = new List<TranscriptSegment>();
 
         foreach (var file in new[] { Tracks.Me, Tracks.Participants })
         {
@@ -57,7 +58,7 @@ static class Transcriber
                 var text = segment.Text.Trim();
 
                 if (text.Length > 0)
-                    segments.Add((segment.Start, speaker, text));
+                    segments.Add(new TranscriptSegment(segment.Start, speaker, text));
             }
         }
 
