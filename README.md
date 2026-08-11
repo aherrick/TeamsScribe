@@ -1,6 +1,7 @@
 # TeamsScribe
 
 [![Build](https://github.com/aherrick/TeamsScribe/actions/workflows/build.yml/badge.svg)](https://github.com/aherrick/TeamsScribe/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/aherrick/TeamsScribe)](https://github.com/aherrick/TeamsScribe/releases/latest)
 
 Automatically records, transcribes, and summarizes your Microsoft Teams meetings — entirely on your local machine.
 

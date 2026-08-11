@@ -20,9 +20,13 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - run: dotnet publish TeamsScribe.csproj -c Release -p:Version=${{ env.VERSION }} -o publish
+      # Single-file folds managed assemblies into the exe; native DLLs (Foundry Local,
+      # onnxruntime, whisper) stay loose in runtimes/, so release the whole folder.
+      - run: dotnet publish TeamsScribe.csproj -c Release -p:Version=${{ env.VERSION }} -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=false -o publish
 
-      # Foundry Local / ONNX ship native DLLs beside the exe, so release the whole folder.
+      # CPU whisper runtime drops win-arm64/win-x86 natives unused by the win-x64 build.
+      - run: Remove-Item publish/runtimes/win-arm64, publish/runtimes/win-x86 -Recurse -Force -ErrorAction SilentlyContinue
+
       - run: Compress-Archive -Path publish/* -DestinationPath TeamsScribe-v${{ env.VERSION }}.zip
 
       - uses: softprops/action-gh-release@v2
