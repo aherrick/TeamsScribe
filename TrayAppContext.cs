@@ -14,8 +14,8 @@ sealed class TrayAppContext : ApplicationContext
     private const int MinMeetingSeconds = 30;
     private static readonly string AppVersion = typeof(TrayAppContext).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
-    private static readonly string RecordingsFolder =
-        Path.Combine(AppContext.BaseDirectory, "recordings");
+    private static readonly string MeetingsFolder =
+        Path.Combine(AppContext.BaseDirectory, "meetings");
 
     private static readonly string UpdateExePath = Path.Combine(
         Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName
@@ -40,7 +40,7 @@ sealed class TrayAppContext : ApplicationContext
 
     public TrayAppContext()
     {
-        Directory.CreateDirectory(RecordingsFolder);
+        Directory.CreateDirectory(MeetingsFolder);
         _ = _marshal.Handle; // force handle creation on the UI thread
         _settings = AppSettings.Load();
 
@@ -52,7 +52,8 @@ sealed class TrayAppContext : ApplicationContext
             ContextMenuStrip = BuildMenu(),
         };
 
-        _ = CheckForUpdatesAsync();
+        _tray.ShowBalloonTip(3000, "TeamsScribe", "TeamsScribe is running in your system tray.", ToolTipIcon.Info);
+        AppLog.Write($"TeamsScribe v{AppVersion} started.");
         _watchLoop = Task.Run(async () =>
         {
             await DownloadDefaultModelsAsync();
@@ -67,6 +68,23 @@ sealed class TrayAppContext : ApplicationContext
         menu.Items.Add($"TeamsScribe v{AppVersion}", null, (_, _) => OpenRepo());
         _statusItem = new ToolStripMenuItem("Starting up...") { Enabled = false };
         menu.Items.Add(_statusItem);
+        menu.Items.Add(new ToolStripSeparator());
+
+        menu.Items.Add("Chat", null, (_, _) => OpenChat());
+
+        var startup = new ToolStripMenuItem("Run at Startup")
+        {
+            CheckOnClick = true,
+            Checked = StartupManager.IsEnabled(),
+        };
+        startup.Click += (_, _) => StartupManager.Set(startup.Checked, UpdateExePath);
+        menu.Items.Add(startup);
+        menu.Items.Add("Check for Updates", null, async (_, _) => await CheckForUpdatesAsync());
+
+        var folders = new ToolStripMenuItem("Open Folder");
+        folders.DropDownItems.Add("Meetings", null, (_, _) => OpenFolder(MeetingsFolder));
+        folders.DropDownItems.Add("Logs", null, (_, _) => OpenFolder(AppLog.Folder));
+        menu.Items.Add(folders);
         menu.Items.Add(new ToolStripSeparator());
 
         var transcriber = new ToolStripMenuItem("Transcriber");
@@ -84,16 +102,6 @@ sealed class TrayAppContext : ApplicationContext
         menu.Items.Add(transcriber);
         menu.Items.Add(summarizer);
         menu.Items.Add(chatModel);
-        menu.Items.Add("Chat", null, (_, _) => OpenChat());
-
-        var startup = new ToolStripMenuItem("Run at Startup")
-        {
-            CheckOnClick = true,
-            Checked = StartupManager.IsEnabled(),
-        };
-        startup.Click += (_, _) => StartupManager.Set(startup.Checked, UpdateExePath);
-        menu.Items.Add(startup);
-
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, Exit);
 
@@ -118,9 +126,10 @@ sealed class TrayAppContext : ApplicationContext
             await _updater.DownloadUpdatesAsync(newVersion);
             _updater.ApplyUpdatesAndRestart(newVersion);
         }
-        catch
+        catch (Exception ex)
         {
-            // Update checks must not interfere with recording.
+            AppLog.Write("Update check failed.", ex);
+            SetStatus("Update check failed", balloon: true);
         }
     }
 
@@ -213,6 +222,7 @@ sealed class TrayAppContext : ApplicationContext
         }
         catch (Exception ex)
         {
+            AppLog.Write("Default model download failed.", ex);
             SetStatus("Model download failed: " + ex.Message, balloon: true);
         }
     }
@@ -230,6 +240,7 @@ sealed class TrayAppContext : ApplicationContext
             }
             catch (Exception ex)
             {
+                AppLog.Write($"{name} model download failed.", ex);
                 SetStatus($"{name} failed: " + ex.Message, balloon: true);
             }
         });
@@ -255,7 +266,10 @@ sealed class TrayAppContext : ApplicationContext
                 {
                     var start = DateTime.Now;
                     var title = MeetingNaming.Title(teams);
-                    var folder = Path.Combine(RecordingsFolder, MeetingNaming.FolderName(start, title));
+                    var folder = Path.Combine(
+                        MeetingsFolder,
+                        start.ToString("yyyy-MM-dd"),
+                        MeetingNaming.FolderName(start, title));
                     Directory.CreateDirectory(folder);
 
                     meeting = new Meeting(title, folder, start);
@@ -324,12 +338,15 @@ sealed class TrayAppContext : ApplicationContext
         catch (Exception ex)
         {
             SetRecording(false);
+            AppLog.Write("Meeting processing failed.", ex);
             SetStatus("Error: " + ex.Message, balloon: true);
         }
     }
 
     private void SetStatus(string status, bool balloon = false)
     {
+        AppLog.Write(status);
+
         void Apply()
         {
             // NotifyIcon tooltip caps at 63 chars.
@@ -372,6 +389,12 @@ sealed class TrayAppContext : ApplicationContext
 
     private static void OpenRepo() =>
         Process.Start(new ProcessStartInfo(RepoUrl) { UseShellExecute = true });
+
+    private static void OpenFolder(string folder)
+    {
+        Directory.CreateDirectory(folder);
+        Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+    }
 
     private void OpenChat()
     {

@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>icons\teamsscribe_recording.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
