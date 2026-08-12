@@ -1,40 +1,32 @@
 using System.Diagnostics;
-using Microsoft.Win32;
+using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 
 namespace TeamsScribe.Services;
 
 static class TeamsDetector
 {
-    private const string ConsentStorePath =
-        @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
-
-    // Windows sets LastUsedTimeStop == 0 while an app is actively using the mic.
+    // A call is on when a Teams process holds an active session on a mic (capture) device.
     public static bool IsInCall()
     {
         try
         {
-            using var root = Registry.CurrentUser.OpenSubKey(ConsentStorePath);
-            if (root == null)
-                return false;
+            using var enumerator = new MMDeviceEnumerator();
 
-            foreach (var name in root.GetSubKeyNames())
+            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
             {
-                using var key = root.OpenSubKey(name);
-                if (key == null)
-                    continue;
-
-                if (name.Equals("NonPackaged", StringComparison.OrdinalIgnoreCase))
+                using (device)
                 {
-                    foreach (var child in key.GetSubKeyNames())
+                    var sessions = device.AudioSessionManager.Sessions;
+
+                    for (var i = 0; i < sessions.Count; i++)
                     {
-                        using var childKey = key.OpenSubKey(child);
-                        if (childKey != null && IsTeamsUsingMic(childKey, child))
+                        using var session = sessions[i];
+
+                        if (session.State == AudioSessionState.AudioSessionStateActive
+                            && IsTeamsProcess((int)session.GetProcessID))
                             return true;
                     }
-                }
-                else if (IsTeamsUsingMic(key, name))
-                {
-                    return true;
                 }
             }
         }
@@ -43,6 +35,22 @@ static class TeamsDetector
         }
 
         return false;
+    }
+
+    private static bool IsTeamsProcess(int processId)
+    {
+        if (processId == 0)
+            return false;
+
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return process.ProcessName.Contains("teams", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public static Process FindProcess()
@@ -64,12 +72,5 @@ static class TeamsDetector
         }
 
         return processes.FirstOrDefault();
-    }
-
-    private static bool IsTeamsUsingMic(RegistryKey key, string name)
-    {
-        return name.Contains("teams", StringComparison.OrdinalIgnoreCase)
-            && key.GetValue("LastUsedTimeStop") is long stop && stop == 0
-            && key.GetValue("LastUsedTimeStart") is long start && start > 0;
     }
 }
