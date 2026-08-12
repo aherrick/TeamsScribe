@@ -1,3 +1,4 @@
+using System.IO;
 using Whisper.net;
 using Whisper.net.Ggml;
 using TeamsScribe.Helpers;

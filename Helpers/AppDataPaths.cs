@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace TeamsScribe.Helpers;
 
 static class AppDataPaths

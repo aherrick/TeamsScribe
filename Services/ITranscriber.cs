@@ -1,3 +1,4 @@
+using System.IO;
 using TeamsScribe.Models;
 
 namespace TeamsScribe.Services;

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using TeamsScribe.Helpers;
 using TeamsScribe.Models;
 using TeamsScribe.Services;
