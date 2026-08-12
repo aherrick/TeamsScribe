@@ -22,6 +22,7 @@ sealed class TrayAppContext : ApplicationContext
     private readonly AppSettings _settings;
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _watchLoop;
+    private readonly UpdateManager _updater = new(new GithubSource(RepoUrl, null, false));
     private ToolStripMenuItem _statusItem;
     private ChatForm _chatForm;
 
@@ -85,7 +86,7 @@ sealed class TrayAppContext : ApplicationContext
             CheckOnClick = true,
             Checked = StartupManager.IsEnabled(),
         };
-        startup.Click += (_, _) => StartupManager.Set(startup.Checked);
+        startup.Click += (_, _) => StartupManager.Set(startup.Checked, _updater);
         menu.Items.Add(startup);
 
         menu.Items.Add(new ToolStripSeparator());
@@ -98,9 +99,7 @@ sealed class TrayAppContext : ApplicationContext
     {
         try
         {
-            var updater = new UpdateManager(new GithubSource(RepoUrl, null, false));
-
-            var newVersion = await updater.CheckForUpdatesAsync();
+            var newVersion = await _updater.CheckForUpdatesAsync();
             if (newVersion == null)
                 return;
 
@@ -111,8 +110,8 @@ sealed class TrayAppContext : ApplicationContext
                     MessageBoxIcon.Information) != DialogResult.Yes)
                 return;
 
-            await updater.DownloadUpdatesAsync(newVersion);
-            updater.ApplyUpdatesAndRestart(newVersion);
+            await _updater.DownloadUpdatesAsync(newVersion);
+            _updater.ApplyUpdatesAndRestart(newVersion);
         }
         catch
         {

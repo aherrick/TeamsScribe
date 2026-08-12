@@ -1,19 +1,29 @@
-using Velopack.Windows;
+using Microsoft.Win32;
+using Velopack;
 
 namespace TeamsScribe.Helpers;
 
 static class StartupManager
 {
-    private static readonly Shortcuts Shortcuts = new();
+    private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string ValueName = "TeamsScribe";
 
-    public static bool IsEnabled() =>
-        Shortcuts.FindShortcuts(Path.GetFileName(Environment.ProcessPath)!, ShortcutLocation.Startup).Any();
-
-    public static void Set(bool enabled)
+    public static bool IsEnabled()
     {
+        using var key = Registry.CurrentUser.OpenSubKey(RunKey);
+        return key?.GetValue(ValueName) != null;
+    }
+
+    public static void Set(bool enabled, UpdateManager updater)
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+
+        if (key == null)
+            return;
+
         if (enabled)
-            Shortcuts.CreateShortcutForThisExe(ShortcutLocation.Startup);
+            key.SetValue(ValueName, $"\"{updater.Locator.UpdateExePath}\" start");
         else
-            Shortcuts.RemoveShortcutForThisExe(ShortcutLocation.Startup);
+            key.DeleteValue(ValueName, throwOnMissingValue: false);
     }
 }
