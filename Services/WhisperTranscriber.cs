@@ -1,5 +1,6 @@
 using Whisper.net;
 using Whisper.net.Ggml;
+using TeamsScribe.Helpers;
 using TeamsScribe.Models;
 
 namespace TeamsScribe.Services;
@@ -10,7 +11,7 @@ sealed class WhisperTranscriber : ITranscriber
     private const string ModelName = "ggml-base-en.bin";
 
     private static readonly string ModelDir =
-        Path.Combine(AppContext.BaseDirectory, "models", "whisper");
+        Path.Combine(AppDataPaths.ModelsFolder, "whisper-ggml-base-en");
 
     private static readonly string ModelFile =
         Path.Combine(ModelDir, ModelName);

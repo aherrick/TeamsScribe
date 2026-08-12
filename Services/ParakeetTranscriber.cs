@@ -1,5 +1,6 @@
 using NAudio.Wave;
 using SherpaOnnx;
+using TeamsScribe.Helpers;
 using TeamsScribe.Models;
 
 namespace TeamsScribe.Services;
@@ -14,7 +15,7 @@ sealed class ParakeetTranscriber : ITranscriber
         ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"];
 
     private static readonly string ModelDir =
-        Path.Combine(AppContext.BaseDirectory, "models", "parakeet");
+        Path.Combine(AppDataPaths.ModelsFolder, "parakeet-nemo-tdt-0.6b-v3-int8");
 
     private static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
     private OfflineRecognizer _recognizer;
