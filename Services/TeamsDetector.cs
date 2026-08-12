@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Windows.Automation;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 
@@ -6,7 +7,7 @@ namespace TeamsScribe.Services;
 
 static class TeamsDetector
 {
-    // A call is on when Teams has active microphone and speaker sessions.
+    // A call is on when Teams has active microphone and speaker sessions, but isn't at pre-join.
     // Teams can retain a microphone session after a call ends, but its speaker session ends.
     public static bool IsInCall()
     {
@@ -15,7 +16,8 @@ static class TeamsDetector
             using var enumerator = new MMDeviceEnumerator();
 
             return HasActiveTeamsSession(enumerator, DataFlow.Capture)
-                && HasActiveTeamsSession(enumerator, DataFlow.Render);
+                && HasActiveTeamsSession(enumerator, DataFlow.Render)
+                && !IsOnPreJoinScreen();
         }
         catch
         {
@@ -35,9 +37,18 @@ static class TeamsDetector
                 {
                     using var session = sessions[i];
 
-                    if (session.State == AudioSessionState.AudioSessionStateActive
-                        && IsTeamsProcess((int)session.GetProcessID))
-                        return true;
+                    if (session.State != AudioSessionState.AudioSessionStateActive)
+                        continue;
+
+                    try
+                    {
+                        using var owner = Process.GetProcessById((int)session.GetProcessID);
+                        if (owner.ProcessName.Contains("teams", StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                    catch
+                    {
+                    }
                 }
             }
         }
@@ -45,40 +56,40 @@ static class TeamsDetector
         return false;
     }
 
-    private static bool IsTeamsProcess(int processId)
-    {
-        if (processId == 0)
-            return false;
+    // Match by name only: the new Teams pre-join button lives in WebView2 and may not
+    // surface as a Button control. Safe because this only runs when Teams audio is active.
+    private static readonly Condition JoinButton = new OrCondition(
+        new PropertyCondition(AutomationElement.NameProperty, "Join now"),
+        new PropertyCondition(AutomationElement.NameProperty, "Join"));
 
-        try
+    private static bool IsOnPreJoinScreen()
+    {
+        foreach (var process in TeamsProcesses())
         {
-            using var process = Process.GetProcessById(processId);
-            return process.ProcessName.Contains("teams", StringComparison.OrdinalIgnoreCase);
+            using (process)
+            {
+                try
+                {
+                    if (process.MainWindowHandle != IntPtr.Zero
+                        && AutomationElement.FromHandle(process.MainWindowHandle)
+                            .FindFirst(TreeScope.Descendants, JoinButton) != null)
+                        return true;
+                }
+                catch
+                {
+                }
+            }
         }
-        catch
-        {
-            return false;
-        }
+
+        return false;
     }
 
     public static Process FindProcess()
     {
-        var processes = Process.GetProcessesByName("ms-teams")
-            .Concat(Process.GetProcessesByName("Teams"))
-            .ToArray();
-
-        foreach (var process in processes)
-        {
-            try
-            {
-                if (process.MainWindowHandle != IntPtr.Zero)
-                    return process;
-            }
-            catch
-            {
-            }
-        }
-
-        return processes.FirstOrDefault();
+        var processes = TeamsProcesses();
+        return Array.Find(processes, p => p.MainWindowHandle != IntPtr.Zero) ?? processes.FirstOrDefault();
     }
+
+    private static Process[] TeamsProcesses() =>
+        [.. Process.GetProcessesByName("ms-teams"), .. Process.GetProcessesByName("Teams")];
 }
