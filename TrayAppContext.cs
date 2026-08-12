@@ -65,12 +65,33 @@ sealed class TrayAppContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
 
-        menu.Items.Add($"TeamsScribe v{AppVersion}", null, (_, _) => OpenRepo());
+        menu.Items.Add(new ToolStripMenuItem($"TeamsScribe v{AppVersion}") { Enabled = false });
         _statusItem = new ToolStripMenuItem("Starting up...") { Enabled = false };
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
 
         menu.Items.Add("Chat", null, (_, _) => OpenChat());
+
+        var folders = new ToolStripMenuItem("Open Folder");
+        folders.DropDownItems.Add("Meetings", null, (_, _) => OpenFolder(MeetingsFolder));
+        folders.DropDownItems.Add("Logs", null, (_, _) => OpenFolder(AppLog.Folder));
+        menu.Items.Add(folders);
+        menu.Items.Add(new ToolStripSeparator());
+
+        var models = new ToolStripMenuItem("Models");
+
+        var summarizer = new ToolStripMenuItem("Summary Model");
+        summarizer.DropDownItems.Add(SummarizerItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
+        summarizer.DropDownItems.Add(SummarizerItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
+
+        var chatModel = new ToolStripMenuItem("Chat Model");
+        chatModel.DropDownItems.Add(ChatModelItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
+        chatModel.DropDownItems.Add(ChatModelItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
+
+        models.DropDownItems.Add(chatModel);
+        models.DropDownItems.Add(summarizer);
+        menu.Items.Add(models);
+        menu.Items.Add(new ToolStripSeparator());
 
         var startup = new ToolStripMenuItem("Run at Startup")
         {
@@ -80,23 +101,7 @@ sealed class TrayAppContext : ApplicationContext
         startup.Click += (_, _) => StartupManager.Set(startup.Checked, UpdateExePath);
         menu.Items.Add(startup);
         menu.Items.Add("Check for Updates", null, async (_, _) => await CheckForUpdatesAsync());
-
-        var folders = new ToolStripMenuItem("Open Folder");
-        folders.DropDownItems.Add("Meetings", null, (_, _) => OpenFolder(MeetingsFolder));
-        folders.DropDownItems.Add("Logs", null, (_, _) => OpenFolder(AppLog.Folder));
-        menu.Items.Add(folders);
-        menu.Items.Add(new ToolStripSeparator());
-
-        var summarizer = new ToolStripMenuItem("Summarizer");
-        summarizer.DropDownItems.Add(SummarizerItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
-        summarizer.DropDownItems.Add(SummarizerItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
-
-        var chatModel = new ToolStripMenuItem("Chat Model");
-        chatModel.DropDownItems.Add(ChatModelItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
-        chatModel.DropDownItems.Add(ChatModelItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
-
-        menu.Items.Add(summarizer);
-        menu.Items.Add(chatModel);
+        menu.Items.Add("GitHub", null, (_, _) => OpenRepo());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, Exit);
 
