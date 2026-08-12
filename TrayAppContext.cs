@@ -17,6 +17,11 @@ sealed class TrayAppContext : ApplicationContext
     private static readonly string RecordingsFolder =
         Path.Combine(AppContext.BaseDirectory, "recordings");
 
+    private static readonly string UpdateExePath = Path.Combine(
+        Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName
+            ?? AppContext.BaseDirectory,
+        "Update.exe");
+
     private readonly NotifyIcon _tray;
     private readonly Control _marshal = new();
     private readonly AppSettings _settings;
@@ -86,7 +91,7 @@ sealed class TrayAppContext : ApplicationContext
             CheckOnClick = true,
             Checked = StartupManager.IsEnabled(),
         };
-        startup.Click += (_, _) => StartupManager.Set(startup.Checked, _updater);
+        startup.Click += (_, _) => StartupManager.Set(startup.Checked, UpdateExePath);
         menu.Items.Add(startup);
 
         menu.Items.Add(new ToolStripSeparator());

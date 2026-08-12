@@ -1,5 +1,4 @@
 using Microsoft.Win32;
-using Velopack;
 
 namespace TeamsScribe.Helpers;
 
@@ -14,7 +13,7 @@ static class StartupManager
         return key?.GetValue(ValueName) != null;
     }
 
-    public static void Set(bool enabled, UpdateManager updater)
+    public static void Set(bool enabled, string updateExePath)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
 
@@ -22,7 +21,7 @@ static class StartupManager
             return;
 
         if (enabled)
-            key.SetValue(ValueName, $"\"{updater.Locator.UpdateExePath}\" start");
+            key.SetValue(ValueName, $"\"{updateExePath}\" start");
         else
             key.DeleteValue(ValueName, throwOnMissingValue: false);
     }
