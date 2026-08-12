@@ -124,7 +124,7 @@ sealed class ChatForm : Form
         }
         finally
         {
-            if (!IsDisposed)
+            if (CanUpdateUi)
             {
                 _input.Enabled = true;
                 _send.Enabled = true;
@@ -151,6 +151,9 @@ sealed class ChatForm : Form
     // Suspends painting while appending so the view doesn't bounce as chunks stream in.
     private void Append(string text, Color color, Font font)
     {
+        if (!CanUpdateUi)
+            return;
+
         SendMessage(_transcript.Handle, WM_SETREDRAW, IntPtr.Zero, IntPtr.Zero);
 
         _transcript.SelectionStart = _transcript.TextLength;
@@ -163,4 +166,10 @@ sealed class ChatForm : Form
         SendMessage(_transcript.Handle, WM_VSCROLL, SB_BOTTOM, IntPtr.Zero);
         _transcript.Invalidate();
     }
+
+    private bool CanUpdateUi =>
+        !IsDisposed && !Disposing
+        && !_input.IsDisposed && !_input.Disposing
+        && !_send.IsDisposed && !_send.Disposing
+        && !_transcript.IsDisposed && !_transcript.Disposing;
 }

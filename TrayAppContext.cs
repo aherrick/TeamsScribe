@@ -114,7 +114,14 @@ sealed class TrayAppContext : ApplicationContext
         {
             var newVersion = await _updater.CheckForUpdatesAsync();
             if (newVersion == null)
+            {
+                MessageBox.Show(
+                    "TeamsScribe is up to date.",
+                    "TeamsScribe updates",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
                 return;
+            }
 
             if (MessageBox.Show(
                     "A new version of TeamsScribe is available. Download and install it now?",
