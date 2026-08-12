@@ -32,7 +32,7 @@ sealed class TrayAppContext : ApplicationContext
     private ToolStripMenuItem _statusItem;
     private ChatForm _chatForm;
 
-    private readonly Dictionary<TranscriberEngine, ITranscriber> _transcribers = [];
+    private readonly WhisperTranscriber _transcriber = new();
     private readonly Dictionary<SummarizerModel, LocalChatClient> _chatClients = [];
     private readonly Dictionary<SummarizerModel, Summarizer> _summarizers = [];
 
@@ -88,10 +88,6 @@ sealed class TrayAppContext : ApplicationContext
         menu.Items.Add(folders);
         menu.Items.Add(new ToolStripSeparator());
 
-        var transcriber = new ToolStripMenuItem("Transcriber");
-        transcriber.DropDownItems.Add(TranscriberItem("Parakeet", TranscriberEngine.Parakeet));
-        transcriber.DropDownItems.Add(TranscriberItem("Whisper", TranscriberEngine.Whisper));
-
         var summarizer = new ToolStripMenuItem("Summarizer");
         summarizer.DropDownItems.Add(SummarizerItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
         summarizer.DropDownItems.Add(SummarizerItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
@@ -100,7 +96,6 @@ sealed class TrayAppContext : ApplicationContext
         chatModel.DropDownItems.Add(ChatModelItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
         chatModel.DropDownItems.Add(ChatModelItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
 
-        menu.Items.Add(transcriber);
         menu.Items.Add(summarizer);
         menu.Items.Add(chatModel);
         menu.Items.Add(new ToolStripSeparator());
@@ -141,24 +136,6 @@ sealed class TrayAppContext : ApplicationContext
         }
     }
 
-    private ToolStripMenuItem TranscriberItem(string text, TranscriberEngine engine)
-    {
-        var item = new ToolStripMenuItem(text) { Checked = _settings.Transcriber == engine };
-
-        item.Click += (_, _) =>
-        {
-            _settings.Transcriber = engine;
-            _settings.Save();
-
-            foreach (ToolStripMenuItem sibling in item.Owner.Items)
-                sibling.Checked = sibling == item;
-
-            WarmUpModel(text, () => GetTranscriber(engine).EnsureModelAsync());
-        };
-
-        return item;
-    }
-
     private ToolStripMenuItem SummarizerItem(string text, SummarizerModel model)
     {
         var item = new ToolStripMenuItem(text) { Checked = _settings.Summarizer == model };
@@ -195,15 +172,6 @@ sealed class TrayAppContext : ApplicationContext
         return item;
     }
 
-    private ITranscriber GetTranscriber(TranscriberEngine engine) =>
-        _transcribers.TryGetValue(engine, out var t)
-            ? t
-            : _transcribers[engine] = engine switch
-            {
-                TranscriberEngine.Whisper => new WhisperTranscriber(),
-                _ => new ParakeetTranscriber(),
-            };
-
     private LocalChatClient GetChatClient(SummarizerModel model) =>
         _chatClients.TryGetValue(model, out var client)
             ? client
@@ -225,7 +193,7 @@ sealed class TrayAppContext : ApplicationContext
         try
         {
             await Task.WhenAll(
-                GetTranscriber(TranscriberEngine.Parakeet).EnsureModelAsync(),
+                _transcriber.EnsureModelAsync(),
                 GetChatClient(SummarizerModel.Phi4Mini).EnsureModelAsync());
         }
         catch (Exception ex)
@@ -335,7 +303,7 @@ sealed class TrayAppContext : ApplicationContext
             }
 
             SetStatus("Transcribing meeting...");
-            await GetTranscriber(_settings.Transcriber).TranscribeAsync(meeting.Folder);
+            await _transcriber.TranscribeAsync(meeting.Folder);
 
             SetStatus("Summarizing meeting...");
             await GetSummarizer(_settings.Summarizer)

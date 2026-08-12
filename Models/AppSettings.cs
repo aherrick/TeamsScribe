@@ -4,12 +4,6 @@ using System.Text.Json.Serialization;
 
 namespace TeamsScribe.Models;
 
-enum TranscriberEngine
-{
-    Whisper,
-    Parakeet,
-}
-
 enum SummarizerModel
 {
     Phi4Mini,
@@ -19,7 +13,6 @@ enum SummarizerModel
 // User-chosen engines, persisted next to the exe so choices survive restarts.
 sealed class AppSettings
 {
-    public TranscriberEngine Transcriber { get; set; } = TranscriberEngine.Parakeet;
     public SummarizerModel Summarizer { get; set; } = SummarizerModel.Phi4Mini;
     public SummarizerModel ChatModel { get; set; } = SummarizerModel.Phi4Mini;
 
