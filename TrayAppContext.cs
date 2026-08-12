@@ -65,7 +65,7 @@ sealed class TrayAppContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
 
-        menu.Items.Add(new ToolStripMenuItem($"TeamsScribe v{AppVersion}") { Enabled = false });
+        menu.Items.Add($"TeamsScribe v{AppVersion}", null, (_, _) => OpenRepo());
         _statusItem = new ToolStripMenuItem("Starting up...") { Enabled = false };
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
@@ -101,7 +101,6 @@ sealed class TrayAppContext : ApplicationContext
         startup.Click += (_, _) => StartupManager.Set(startup.Checked, UpdateExePath);
         menu.Items.Add(startup);
         menu.Items.Add("Check for Updates", null, async (_, _) => await CheckForUpdatesAsync());
-        menu.Items.Add("GitHub", null, (_, _) => OpenRepo());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, Exit);
 
