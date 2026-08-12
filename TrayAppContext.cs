@@ -15,8 +15,7 @@ sealed class TrayAppContext : ApplicationContext
     private const int MinMeetingSeconds = 30;
     private static readonly string AppVersion = typeof(TrayAppContext).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
-    private static readonly string MeetingsFolder =
-        Path.Combine(AppContext.BaseDirectory, "meetings");
+    private static readonly string MeetingsFolder = AppDataPaths.MeetingsFolder;
 
     private static readonly string UpdateExePath = Path.Combine(
         Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName

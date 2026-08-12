@@ -5,7 +5,7 @@ namespace TeamsScribe.Helpers;
 static class AppLog
 {
     private static readonly object Gate = new();
-    private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "logs", "TeamsScribe.log");
+    private static readonly string LogPath = Path.Combine(AppDataPaths.LogsFolder, "TeamsScribe.log");
 
     public static string Folder => Path.GetDirectoryName(LogPath)!;
 

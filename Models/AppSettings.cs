@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TeamsScribe.Helpers;
 
 namespace TeamsScribe.Models;
 
@@ -16,8 +17,7 @@ sealed class AppSettings
     public SummarizerModel Summarizer { get; set; } = SummarizerModel.Phi4Mini;
     public SummarizerModel ChatModel { get; set; } = SummarizerModel.Phi4Mini;
 
-    private static readonly string FilePath =
-        Path.Combine(AppContext.BaseDirectory, "settings.json");
+    private static readonly string FilePath = AppDataPaths.SettingsFile;
 
     private static readonly JsonSerializerOptions Options = new()
     {
