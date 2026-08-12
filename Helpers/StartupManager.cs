@@ -1,29 +1,19 @@
-using Microsoft.Win32;
+using Velopack.Windows;
 
 namespace TeamsScribe.Helpers;
 
-// Toggles "run at sign-in" via the per-user Run registry key.
 static class StartupManager
 {
-    private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "TeamsScribe";
+    private static readonly Shortcuts Shortcuts = new();
 
-    public static bool IsEnabled()
-    {
-        using var key = Registry.CurrentUser.OpenSubKey(RunKey);
-        return key?.GetValue(ValueName) != null;
-    }
+    public static bool IsEnabled() =>
+        Shortcuts.FindShortcuts(Path.GetFileName(Environment.ProcessPath)!, ShortcutLocation.Startup).Any();
 
     public static void Set(bool enabled)
     {
-        using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
-
-        if (key == null)
-            return;
-
         if (enabled)
-            key.SetValue(ValueName, $"\"{Environment.ProcessPath}\"");
+            Shortcuts.CreateShortcutForThisExe(ShortcutLocation.Startup);
         else
-            key.DeleteValue(ValueName, throwOnMissingValue: false);
+            Shortcuts.RemoveShortcutForThisExe(ShortcutLocation.Startup);
     }
 }

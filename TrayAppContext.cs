@@ -29,6 +29,9 @@ sealed class TrayAppContext : ApplicationContext
     private readonly Dictionary<SummarizerModel, LocalChatClient> _chatClients = [];
     private readonly Dictionary<SummarizerModel, Summarizer> _summarizers = [];
 
+    private readonly Icon _idleIcon = LoadIcon("teamsscribe_record.png");
+    private readonly Icon _recordingIcon = LoadIcon("teamsscribe_recording.png");
+
     public TrayAppContext()
     {
         Directory.CreateDirectory(RecordingsFolder);
@@ -37,7 +40,7 @@ sealed class TrayAppContext : ApplicationContext
 
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _idleIcon,
             Text = "TeamsScribe",
             Visible = true,
             ContextMenuStrip = BuildMenu(),
@@ -257,6 +260,7 @@ sealed class TrayAppContext : ApplicationContext
                     await recorder.StartAsync(folder, teams.Id);
 
                     SetStatus("Recording meeting...", balloon: true);
+                    SetRecording(true);
                 }
             }
 
@@ -293,6 +297,7 @@ sealed class TrayAppContext : ApplicationContext
         try
         {
             await recorder.StopAsync();
+            SetRecording(false);
 
             var end = DateTime.Now;
             var duration = end - meeting.Start;
@@ -314,6 +319,7 @@ sealed class TrayAppContext : ApplicationContext
         }
         catch (Exception ex)
         {
+            SetRecording(false);
             SetStatus("Error: " + ex.Message, balloon: true);
         }
     }
@@ -335,6 +341,29 @@ sealed class TrayAppContext : ApplicationContext
             _marshal.BeginInvoke(Apply);
         else
             Apply();
+    }
+
+    private void SetRecording(bool recording)
+    {
+        void Apply() => _tray.Icon = recording ? _recordingIcon : _idleIcon;
+
+        if (_marshal.IsHandleCreated && _marshal.InvokeRequired)
+            _marshal.BeginInvoke(Apply);
+        else
+            Apply();
+    }
+
+    private static Icon LoadIcon(string file)
+    {
+        try
+        {
+            using var bitmap = new Bitmap(Path.Combine(AppContext.BaseDirectory, "icons", file));
+            return Icon.FromHandle(bitmap.GetHicon());
+        }
+        catch
+        {
+            return SystemIcons.Application;
+        }
     }
 
     private static void OpenRepo() =>
@@ -364,6 +393,8 @@ sealed class TrayAppContext : ApplicationContext
         }
 
         _tray.Dispose();
+        _idleIcon.Dispose();
+        _recordingIcon.Dispose();
         _marshal.Dispose();
         ExitThread();
     }

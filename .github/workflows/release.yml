@@ -27,7 +27,7 @@ jobs:
       # CPU whisper runtime drops win-arm64/win-x86 natives unused by the win-x64 build.
       - run: Remove-Item publish/runtimes/win-arm64, publish/runtimes/win-x86 -Recurse -Force -ErrorAction SilentlyContinue
 
-      - run: dotnet tool install -g vpk
+      - run: dotnet tool install -g vpk --version 1.2.0
 
       # Pull the previous release so Velopack can build a delta package.
       - run: vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
