@@ -20,16 +20,19 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # Single-file folds managed assemblies into the exe; native DLLs (Foundry Local,
-      # onnxruntime, whisper) stay loose in runtimes/, so release the whole folder.
-      - run: dotnet publish TeamsScribe.csproj -c Release -p:Version=${{ env.VERSION }} -p:PublishSingleFile=true -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=false -p:DebugType=none -p:DebugSymbols=false -o publish
+      # Self-contained folder publish; native DLLs (Foundry Local, onnxruntime,
+      # whisper) stay loose and Velopack packages the whole folder.
+      - run: dotnet publish TeamsScribe.csproj -c Release -r win-x64 --self-contained -p:Version=${{ env.VERSION }} -o publish
 
       # CPU whisper runtime drops win-arm64/win-x86 natives unused by the win-x64 build.
       - run: Remove-Item publish/runtimes/win-arm64, publish/runtimes/win-x86 -Recurse -Force -ErrorAction SilentlyContinue
 
-      - run: Compress-Archive -Path publish/* -DestinationPath TeamsScribe-v${{ env.VERSION }}.zip
+      - run: dotnet tool install -g vpk
 
-      - uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.VERSION }}
-          files: TeamsScribe-v${{ env.VERSION }}.zip
+      # Pull the previous release so Velopack can build a delta package.
+      - run: vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - run: vpk pack -u TeamsScribe -v ${{ env.VERSION }} -p publish -e TeamsScribe.exe
+
+      - run: vpk upload github --repoUrl https://github.com/${{ github.repository }} --publish --releaseName "TeamsScribe ${{ env.VERSION }}" --tag v${{ env.VERSION }} --token ${{ secrets.GITHUB_TOKEN }}

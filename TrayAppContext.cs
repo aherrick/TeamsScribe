@@ -2,6 +2,8 @@ using System.Diagnostics;
 using TeamsScribe.Helpers;
 using TeamsScribe.Models;
 using TeamsScribe.Services;
+using Velopack;
+using Velopack.Sources;
 
 namespace TeamsScribe;
 
@@ -10,6 +12,7 @@ sealed class TrayAppContext : ApplicationContext
 {
     private const string RepoUrl = "https://github.com/aherrick/TeamsScribe";
     private const int MinMeetingSeconds = 30;
+    private static readonly string AppVersion = typeof(TrayAppContext).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     private static readonly string RecordingsFolder =
         Path.Combine(AppContext.BaseDirectory, "recordings");
@@ -40,6 +43,7 @@ sealed class TrayAppContext : ApplicationContext
             ContextMenuStrip = BuildMenu(),
         };
 
+        _ = CheckForUpdatesAsync();
         _watchLoop = Task.Run(async () =>
         {
             await DownloadDefaultModelsAsync();
@@ -51,7 +55,7 @@ sealed class TrayAppContext : ApplicationContext
     {
         var menu = new ContextMenuStrip();
 
-        menu.Items.Add("TeamsScribe", null, (_, _) => OpenRepo());
+        menu.Items.Add($"TeamsScribe v{AppVersion}", null, (_, _) => OpenRepo());
         _statusItem = new ToolStripMenuItem("Starting up...") { Enabled = false };
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripSeparator());
@@ -72,10 +76,45 @@ sealed class TrayAppContext : ApplicationContext
         menu.Items.Add(summarizer);
         menu.Items.Add(chatModel);
         menu.Items.Add("Chat", null, (_, _) => OpenChat());
+
+        var startup = new ToolStripMenuItem("Run at Startup")
+        {
+            CheckOnClick = true,
+            Checked = StartupManager.IsEnabled(),
+        };
+        startup.Click += (_, _) => StartupManager.Set(startup.Checked);
+        menu.Items.Add(startup);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, Exit);
 
         return menu;
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var updater = new UpdateManager(new GithubSource(RepoUrl, null, false));
+
+            var newVersion = await updater.CheckForUpdatesAsync();
+            if (newVersion == null)
+                return;
+
+            if (MessageBox.Show(
+                    "A new version of TeamsScribe is available. Download and install it now?",
+                    "TeamsScribe update",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Information) != DialogResult.Yes)
+                return;
+
+            await updater.DownloadUpdatesAsync(newVersion);
+            updater.ApplyUpdatesAndRestart(newVersion);
+        }
+        catch
+        {
+            // Update checks must not interfere with recording.
+        }
     }
 
     private ToolStripMenuItem TranscriberItem(string text, TranscriberEngine engine)

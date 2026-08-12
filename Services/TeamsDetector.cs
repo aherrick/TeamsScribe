@@ -6,32 +6,40 @@ namespace TeamsScribe.Services;
 
 static class TeamsDetector
 {
-    // A call is on when a Teams process holds an active session on a mic (capture) device.
+    // A call is on when Teams has active microphone and speaker sessions.
+    // Teams can retain a microphone session after a call ends, but its speaker session ends.
     public static bool IsInCall()
     {
         try
         {
             using var enumerator = new MMDeviceEnumerator();
 
-            foreach (var device in enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active))
-            {
-                using (device)
-                {
-                    var sessions = device.AudioSessionManager.Sessions;
-
-                    for (var i = 0; i < sessions.Count; i++)
-                    {
-                        using var session = sessions[i];
-
-                        if (session.State == AudioSessionState.AudioSessionStateActive
-                            && IsTeamsProcess((int)session.GetProcessID))
-                            return true;
-                    }
-                }
-            }
+            return HasActiveTeamsSession(enumerator, DataFlow.Capture)
+                && HasActiveTeamsSession(enumerator, DataFlow.Render);
         }
         catch
         {
+            return false;
+        }
+    }
+
+    private static bool HasActiveTeamsSession(MMDeviceEnumerator enumerator, DataFlow dataFlow)
+    {
+        foreach (var device in enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active))
+        {
+            using (device)
+            {
+                var sessions = device.AudioSessionManager.Sessions;
+
+                for (var i = 0; i < sessions.Count; i++)
+                {
+                    using var session = sessions[i];
+
+                    if (session.State == AudioSessionState.AudioSessionStateActive
+                        && IsTeamsProcess((int)session.GetProcessID))
+                        return true;
+                }
+            }
         }
 
         return false;
