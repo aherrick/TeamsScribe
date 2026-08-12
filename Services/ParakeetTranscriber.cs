@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using NAudio.Wave;
 using SherpaOnnx;
 using TeamsScribe.Helpers;
