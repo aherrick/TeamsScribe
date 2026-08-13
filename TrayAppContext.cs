@@ -82,10 +82,12 @@ sealed class TrayAppContext : ApplicationContext
 
         var summarizer = new ToolStripMenuItem("Summary Model");
         summarizer.DropDownItems.Add(SummarizerItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
+        summarizer.DropDownItems.Add(SummarizerItem("Phi-4", SummarizerModel.Phi4));
         summarizer.DropDownItems.Add(SummarizerItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
 
         var chatModel = new ToolStripMenuItem("Chat Model");
         chatModel.DropDownItems.Add(ChatModelItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
+        chatModel.DropDownItems.Add(ChatModelItem("Phi-4", SummarizerModel.Phi4));
         chatModel.DropDownItems.Add(ChatModelItem("Qwen2.5 1.5B", SummarizerModel.Qwen25));
 
         models.DropDownItems.Add(chatModel);
@@ -178,16 +180,14 @@ sealed class TrayAppContext : ApplicationContext
     private LocalChatClient GetChatClient(SummarizerModel model) =>
         _chatClients.TryGetValue(model, out var client)
             ? client
-            : _chatClients[model] = new LocalChatClient(model switch
-            {
-                SummarizerModel.Qwen25 => "qwen2.5-1.5b",
-                _ => "phi-4-mini",
-            });
+            : _chatClients[model] = new LocalChatClient(SummarizerModels.Get(model).Alias);
 
     private Summarizer GetSummarizer(SummarizerModel model) =>
         _summarizers.TryGetValue(model, out var summarizer)
             ? summarizer
-            : _summarizers[model] = new Summarizer(GetChatClient(model));
+            : _summarizers[model] = new Summarizer(
+                GetChatClient(model),
+                SummarizerModels.Get(model).ChunkChars);
 
     private async Task DownloadDefaultModelsAsync()
     {

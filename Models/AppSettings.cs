@@ -8,7 +8,19 @@ namespace TeamsScribe.Models;
 enum SummarizerModel
 {
     Phi4Mini,
+    Phi4,
     Qwen25,
+}
+
+// Request budgets account for both context and local inference time.
+static class SummarizerModels
+{
+    public static (string Alias, int ChunkChars) Get(SummarizerModel model) => model switch
+    {
+        SummarizerModel.Phi4 => ("phi-4", 40000),
+        SummarizerModel.Qwen25 => ("qwen2.5-1.5b", 6000),
+        _ => ("phi-4-mini", 6000),
+    };
 }
 
 // User-chosen engines, persisted next to the exe so choices survive restarts.

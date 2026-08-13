@@ -5,12 +5,16 @@ namespace TeamsScribe.Services;
 
 internal sealed class Summarizer
 {
-    // Keep well under the model's context window; long meetings get chunked.
-    private const int MaxChars = 12000;
+    private const int MaxAttempts = 2;
 
     private readonly LocalChatClient _chat;
+    private readonly int _chunkChars;
 
-    public Summarizer(LocalChatClient chat) => _chat = chat;
+    public Summarizer(LocalChatClient chat, int chunkChars)
+    {
+        _chat = chat;
+        _chunkChars = chunkChars;
+    }
 
     public async Task SummarizeAsync(string folder, string title, DateTime start, DateTime end)
     {
@@ -21,7 +25,7 @@ internal sealed class Summarizer
 
         string summary;
 
-        if (transcript.Length <= MaxChars)
+        if (transcript.Length <= _chunkChars)
         {
             summary = await RecapAsync(transcript);
         }
@@ -30,10 +34,10 @@ internal sealed class Summarizer
             // Condense each chunk to notes, then recap the combined notes.
             var notes = new StringBuilder();
 
-            foreach (var chunk in Chunk(transcript, MaxChars))
-                notes.AppendLine(await CondenseAsync(chunk));
+            foreach (var chunk in Chunk(transcript, _chunkChars))
+                notes.AppendLine(await RetryAsync(() => CondenseAsync(chunk)));
 
-            summary = await RecapAsync(notes.ToString());
+            summary = await RetryAsync(() => RecapAsync(notes.ToString()));
         }
 
         var frontMatter = FrontMatter(title, start, end);
@@ -88,6 +92,25 @@ internal sealed class Summarizer
 
     private Task<string> ChatAsync(string system, string user) =>
         _chat.CompleteAsync(system, user);
+
+    private static async Task<string> RetryAsync(Func<Task<string>> operation)
+    {
+        Exception lastError = null;
+
+        for (var attempt = 1; attempt <= MaxAttempts; attempt++)
+        {
+            try
+            {
+                return await operation();
+            }
+            catch (Exception ex) when (attempt < MaxAttempts)
+            {
+                lastError = ex;
+            }
+        }
+
+        throw lastError!;
+    }
 
     private static IEnumerable<string> Chunk(string text, int size)
     {
