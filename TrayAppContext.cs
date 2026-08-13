@@ -254,7 +254,7 @@ sealed class TrayAppContext : ApplicationContext
                     meeting = new Meeting(title, folder, start);
 
                     recorder = new Recorder();
-                    await recorder.StartAsync(folder, teams.Id);
+                    await recorder.StartAsync(folder);
 
                     SetStatus("Recording meeting...", balloon: true);
                     SetRecording(true);

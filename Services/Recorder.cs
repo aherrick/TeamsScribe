@@ -4,7 +4,7 @@ using TeamsScribe.Models;
 
 namespace TeamsScribe.Services;
 
-// Records Teams (per-process loopback) and the mic as two 16 kHz mono tracks.
+// Records the default system output and microphone as independent tracks.
 sealed class Recorder
 {
     private WasapiRecorder _teams;
@@ -12,12 +12,12 @@ sealed class Recorder
     private WaveFileWriter _teamsWriter;
     private WaveFileWriter _micWriter;
 
-    public async Task StartAsync(string folder, int teamsProcessId)
+    public async Task StartAsync(string folder)
     {
         var format = new WaveFormat(16000, 16, 1);
 
         _teams = await new WasapiRecorderBuilder()
-            .WithProcessLoopback((uint)teamsProcessId)
+            .WithLoopbackCapture()
             .WithFormat(format)
             .BuildAsync();
 

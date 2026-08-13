@@ -10,7 +10,7 @@ TeamsScribe runs in the background watching for Teams calls. When a meeting star
 ## How it works
 
 1. **Detect** — [`TeamsDetector`](TeamsDetector.cs) watches the Windows microphone consent store to tell when Teams is actively in a call.
-2. **Record** — [`Recorder`](Recorder.cs) captures two 16 kHz mono tracks via NAudio: the Teams audio (per-process loopback, `participants.wav`) and your mic (`me.wav`).
+2. **Record** — [`Recorder`](Recorder.cs) captures two 16 kHz mono tracks via NAudio: the default system output (`participants.wav`) and your mic (`me.wav`).
 3. **Transcribe** — [`Transcriber`](Transcriber.cs) runs Whisper (`ggml-base-en`) over each track and merges them into a timestamped, speaker-labeled `transcript.txt`.
 4. **Summarize** — [`Summarizer`](Summarizer.cs) uses the `phi-4-mini` model through Foundry Local to write a recap; long meetings are chunked to fit the context window.
 
