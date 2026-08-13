@@ -1,89 +1,58 @@
 using System.Diagnostics;
-using System.Windows.Automation;
-using NAudio.CoreAudioApi;
-using NAudio.CoreAudioApi.Interfaces;
+using Microsoft.Win32;
 
 namespace TeamsScribe.Services;
 
 static class TeamsDetector
 {
-    // A call is on when Teams has active microphone and speaker sessions and exposes an in-call
-    // control. Teams can use audio for notifications or device monitoring while an ordinary chat
-    // is open, so audio sessions alone are not enough to identify a meeting.
+    // Windows records per-app microphone usage here; a Stop time of 0 means "in use right now".
+    private const string ConsentStore =
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
+
+    // A call is on when Teams currently holds the microphone. This is far more stable than
+    // inspecting Teams' UI, which can change or disappear while a call is still active.
     public static bool IsInCall()
     {
         try
         {
-            using var enumerator = new MMDeviceEnumerator();
+            using var root = Registry.CurrentUser.OpenSubKey(ConsentStore);
 
-            return HasActiveTeamsSession(enumerator, DataFlow.Capture)
-                && HasActiveTeamsSession(enumerator, DataFlow.Render)
-                && IsOnCallScreen();
+            foreach (var appKeyName in root?.GetSubKeyNames() ?? [])
+            {
+                using var appKey = root.OpenSubKey(appKeyName);
+
+                if (appKey == null)
+                    continue;
+
+                if (appKeyName.Equals("NonPackaged", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var exeKeyName in appKey.GetSubKeyNames())
+                    {
+                        using var exeKey = appKey.OpenSubKey(exeKeyName);
+                        if (IsTeamsInUse(exeKey, exeKeyName))
+                            return true;
+                    }
+                }
+                else if (IsTeamsInUse(appKey, appKeyName))
+                {
+                    return true;
+                }
+            }
         }
         catch
         {
+        }
+
+        return false;
+    }
+
+    private static bool IsTeamsInUse(RegistryKey key, string identifier)
+    {
+        if (key == null || !identifier.Contains("teams", StringComparison.OrdinalIgnoreCase))
             return false;
-        }
-    }
 
-    private static bool HasActiveTeamsSession(MMDeviceEnumerator enumerator, DataFlow dataFlow)
-    {
-        foreach (var device in enumerator.EnumerateAudioEndPoints(dataFlow, DeviceState.Active))
-        {
-            using (device)
-            {
-                var sessions = device.AudioSessionManager.Sessions;
-
-                for (var i = 0; i < sessions.Count; i++)
-                {
-                    using var session = sessions[i];
-
-                    if (session.State != AudioSessionState.AudioSessionStateActive)
-                        continue;
-
-                    try
-                    {
-                        using var owner = Process.GetProcessById((int)session.GetProcessID);
-                        if (owner.ProcessName.Contains("teams", StringComparison.OrdinalIgnoreCase))
-                            return true;
-                    }
-                    catch
-                    {
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    // Match by name only: Teams' WebView2 controls do not always surface as Buttons.
-    private static readonly Condition InCallButton = new OrCondition(
-        new PropertyCondition(AutomationElement.NameProperty, "Leave"),
-        new PropertyCondition(AutomationElement.NameProperty, "Leave meeting"),
-        new PropertyCondition(AutomationElement.NameProperty, "Hang up"),
-        new PropertyCondition(AutomationElement.NameProperty, "End call"));
-
-    private static bool IsOnCallScreen()
-    {
-        foreach (var process in TeamsProcesses())
-        {
-            using (process)
-            {
-                try
-                {
-                    if (process.MainWindowHandle != IntPtr.Zero
-                        && AutomationElement.FromHandle(process.MainWindowHandle)
-                            .FindFirst(TreeScope.Descendants, InCallButton) != null)
-                        return true;
-                }
-                catch
-                {
-                }
-            }
-        }
-
-        return false;
+        return key.GetValue("LastUsedTimeStop") is long stop && stop == 0
+            && key.GetValue("LastUsedTimeStart") is long start && start > 0;
     }
 
     public static Process FindProcess()

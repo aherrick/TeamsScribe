@@ -13,6 +13,9 @@ sealed class TrayAppContext : ApplicationContext
 {
     private const string RepoUrl = "https://github.com/aherrick/TeamsScribe";
     private const int MinMeetingSeconds = 30;
+    private const int CallDetectionIntervalSeconds = 2;
+    private const int CallEndGraceSeconds = 120;
+    private const int CallEndMisses = CallEndGraceSeconds / CallDetectionIntervalSeconds;
     private static readonly string AppVersion = typeof(TrayAppContext).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     private static readonly string MeetingsFolder = AppDataPaths.MeetingsFolder;
@@ -273,18 +276,30 @@ sealed class TrayAppContext : ApplicationContext
 
             if (inCall)
             {
+                if (misses > 0)
+                    AppLog.Write("Teams call detected again; continuing recording.");
+
                 misses = 0;
             }
-            else if (recorder != null && ++misses >= 5) // ~10s of silence = meeting ended
+            else if (recorder != null)
             {
-                await ProcessMeetingAsync(recorder, meeting);
-                recorder = null;
-                SetStatus("Watching for meetings...");
+                misses++;
+
+                if (misses == 1)
+                    AppLog.Write($"Teams call no longer detected; waiting {CallEndGraceSeconds}s before stopping recording.");
+
+                if (misses >= CallEndMisses)
+                {
+                    AppLog.Write("Teams call remained undetected; stopping recording.");
+                    await ProcessMeetingAsync(recorder, meeting);
+                    recorder = null;
+                    SetStatus("Watching for meetings...");
+                }
             }
 
             try
             {
-                await Task.Delay(2000, token);
+                await Task.Delay(TimeSpan.FromSeconds(CallDetectionIntervalSeconds), token);
             }
             catch (OperationCanceledException)
             {
