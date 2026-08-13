@@ -7,8 +7,9 @@ namespace TeamsScribe.Services;
 
 static class TeamsDetector
 {
-    // A call is on when Teams has active microphone and speaker sessions, but isn't at pre-join.
-    // Teams can retain a microphone session after a call ends, but its speaker session ends.
+    // A call is on when Teams has active microphone and speaker sessions and exposes an in-call
+    // control. Teams can use audio for notifications or device monitoring while an ordinary chat
+    // is open, so audio sessions alone are not enough to identify a meeting.
     public static bool IsInCall()
     {
         try
@@ -17,7 +18,7 @@ static class TeamsDetector
 
             return HasActiveTeamsSession(enumerator, DataFlow.Capture)
                 && HasActiveTeamsSession(enumerator, DataFlow.Render)
-                && !IsOnPreJoinScreen();
+                && IsOnCallScreen();
         }
         catch
         {
@@ -56,13 +57,14 @@ static class TeamsDetector
         return false;
     }
 
-    // Match by name only: the new Teams pre-join button lives in WebView2 and may not
-    // surface as a Button control. Safe because this only runs when Teams audio is active.
-    private static readonly Condition JoinButton = new OrCondition(
-        new PropertyCondition(AutomationElement.NameProperty, "Join now"),
-        new PropertyCondition(AutomationElement.NameProperty, "Join"));
+    // Match by name only: Teams' WebView2 controls do not always surface as Buttons.
+    private static readonly Condition InCallButton = new OrCondition(
+        new PropertyCondition(AutomationElement.NameProperty, "Leave"),
+        new PropertyCondition(AutomationElement.NameProperty, "Leave meeting"),
+        new PropertyCondition(AutomationElement.NameProperty, "Hang up"),
+        new PropertyCondition(AutomationElement.NameProperty, "End call"));
 
-    private static bool IsOnPreJoinScreen()
+    private static bool IsOnCallScreen()
     {
         foreach (var process in TeamsProcesses())
         {
@@ -72,7 +74,7 @@ static class TeamsDetector
                 {
                     if (process.MainWindowHandle != IntPtr.Zero
                         && AutomationElement.FromHandle(process.MainWindowHandle)
-                            .FindFirst(TreeScope.Descendants, JoinButton) != null)
+                            .FindFirst(TreeScope.Descendants, InCallButton) != null)
                         return true;
                 }
                 catch
