@@ -5,7 +5,7 @@ using TeamsScribe.Services;
 
 namespace TeamsScribe;
 
-// Simple local chat over the Foundry models (Phi-4 Mini / Qwen).
+// Simple local chat over the configured Foundry model.
 sealed class ChatForm : Form
 {
     private const int WM_SETREDRAW = 0x000B;
@@ -133,8 +133,12 @@ sealed class ChatForm : Form
         }
     }
 
-    private static string ModelName(SummarizerModel model) =>
-        model == SummarizerModel.Qwen25 ? "Qwen2.5 1.5B" : "Phi-4 Mini";
+    private static string ModelName(SummarizerModel model) => model switch
+    {
+        SummarizerModel.Phi4 => "Phi-4",
+        SummarizerModel.Qwen25 => "Qwen2.5 1.5B",
+        _ => "Phi-4 Mini",
+    };
 
     private void AppendMessage(string author, string text, Color color)
     {

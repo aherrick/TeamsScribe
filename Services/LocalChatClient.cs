@@ -15,7 +15,7 @@ internal sealed class LocalChatClient
 
     public LocalChatClient(string alias) => _alias = alias;
 
-    public async Task EnsureModelAsync()
+    public async Task EnsureModelAsync(Action<float> downloadProgress = null)
     {
         if (_model != null)
             return;
@@ -45,7 +45,7 @@ internal sealed class LocalChatClient
         _model = await catalog.GetModelAsync(_alias)
             ?? throw new Exception($"Model '{_alias}' not found.");
 
-        await _model.DownloadAsync();
+        await _model.DownloadAsync(downloadProgress);
         await _model.LoadAsync();
     }
 

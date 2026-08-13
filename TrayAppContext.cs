@@ -153,7 +153,7 @@ sealed class TrayAppContext : ApplicationContext
             foreach (ToolStripMenuItem sibling in item.Owner.Items)
                 sibling.Checked = sibling == item;
 
-            WarmUpModel(text, () => GetChatClient(model).EnsureModelAsync());
+            WarmUpModel(text, progress => GetChatClient(model).EnsureModelAsync(progress));
         };
 
         return item;
@@ -171,7 +171,7 @@ sealed class TrayAppContext : ApplicationContext
             foreach (ToolStripMenuItem sibling in item.Owner.Items)
                 sibling.Checked = sibling == item;
 
-            WarmUpModel(text, () => GetChatClient(model).EnsureModelAsync());
+            WarmUpModel(text, progress => GetChatClient(model).EnsureModelAsync(progress));
         };
 
         return item;
@@ -206,7 +206,7 @@ sealed class TrayAppContext : ApplicationContext
         }
     }
 
-    private void WarmUpModel(string name, Func<Task> ensureModel)
+    private void WarmUpModel(string name, Func<Action<float>, Task> ensureModel)
     {
         SetStatus($"Downloading {name}...", balloon: true);
 
@@ -214,7 +214,17 @@ sealed class TrayAppContext : ApplicationContext
         {
             try
             {
-                await ensureModel();
+                var lastPercent = -1;
+                await ensureModel(progress =>
+                {
+                    var percent = (int)Math.Round(progress * 100);
+
+                    if (percent == lastPercent)
+                        return;
+
+                    lastPercent = percent;
+                    SetStatus($"Downloading {name}: {percent}%");
+                });
                 SetStatus($"{name} ready", balloon: true);
             }
             catch (Exception ex)
