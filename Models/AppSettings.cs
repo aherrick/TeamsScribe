@@ -12,6 +12,15 @@ enum SummarizerModel
     Qwen25,
 }
 
+// Transcription accuracy tiers; bigger is more accurate but slower to download and run.
+enum WhisperModel
+{
+    Fast,
+    Balanced,
+    Accurate,
+    MostAccurate,
+}
+
 // Request budgets account for both context and local inference time.
 static class SummarizerModels
 {
@@ -28,6 +37,7 @@ sealed class AppSettings
 {
     public SummarizerModel Summarizer { get; set; } = SummarizerModel.Phi4Mini;
     public SummarizerModel ChatModel { get; set; } = SummarizerModel.Phi4Mini;
+    public WhisperModel Transcriber { get; set; } = WhisperModel.Fast;
 
     private static readonly string FilePath = AppDataPaths.SettingsFile;
 

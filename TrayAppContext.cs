@@ -38,7 +38,7 @@ sealed class TrayAppContext : ApplicationContext
     private ToolStripMenuItem _statusItem;
     private ChatForm _chatForm;
 
-    private readonly WhisperTranscriber _transcriber = new();
+    private readonly Dictionary<WhisperModel, WhisperTranscriber> _transcribers = [];
     private readonly Dictionary<SummarizerModel, LocalChatClient> _chatClients = [];
     private readonly Dictionary<SummarizerModel, Summarizer> _summarizers = [];
 
@@ -87,6 +87,12 @@ sealed class TrayAppContext : ApplicationContext
 
         var models = new ToolStripMenuItem("Models");
 
+        var transcriber = new ToolStripMenuItem("Transcription Model");
+        transcriber.DropDownItems.Add(TranscriberItem("Fast", WhisperModel.Fast));
+        transcriber.DropDownItems.Add(TranscriberItem("Balanced", WhisperModel.Balanced));
+        transcriber.DropDownItems.Add(TranscriberItem("Accurate", WhisperModel.Accurate));
+        transcriber.DropDownItems.Add(TranscriberItem("Most Accurate", WhisperModel.MostAccurate));
+
         var summarizer = new ToolStripMenuItem("Summary Model");
         summarizer.DropDownItems.Add(SummarizerItem("Phi-4 Mini", SummarizerModel.Phi4Mini));
         summarizer.DropDownItems.Add(SummarizerItem("Phi-4", SummarizerModel.Phi4));
@@ -99,6 +105,7 @@ sealed class TrayAppContext : ApplicationContext
 
         models.DropDownItems.Add(chatModel);
         models.DropDownItems.Add(summarizer);
+        models.DropDownItems.Add(transcriber);
         menu.Items.Add(models);
         menu.Items.Add(new ToolStripSeparator());
 
@@ -184,6 +191,29 @@ sealed class TrayAppContext : ApplicationContext
         return item;
     }
 
+    private ToolStripMenuItem TranscriberItem(string text, WhisperModel model)
+    {
+        var item = new ToolStripMenuItem(text) { Checked = _settings.Transcriber == model };
+
+        item.Click += (_, _) =>
+        {
+            _settings.Transcriber = model;
+            _settings.Save();
+
+            foreach (ToolStripMenuItem sibling in item.Owner.Items)
+                sibling.Checked = sibling == item;
+
+            WarmUpModel($"{text} transcriber", _ => GetTranscriber(model).EnsureModelAsync());
+        };
+
+        return item;
+    }
+
+    private WhisperTranscriber GetTranscriber(WhisperModel model) =>
+        _transcribers.TryGetValue(model, out var transcriber)
+            ? transcriber
+            : _transcribers[model] = new WhisperTranscriber(model);
+
     private LocalChatClient GetChatClient(SummarizerModel model) =>
         _chatClients.TryGetValue(model, out var client)
             ? client
@@ -203,7 +233,7 @@ sealed class TrayAppContext : ApplicationContext
         try
         {
             await Task.WhenAll(
-                _transcriber.EnsureModelAsync(),
+                GetTranscriber(_settings.Transcriber).EnsureModelAsync(),
                 GetChatClient(SummarizerModel.Phi4Mini).EnsureModelAsync());
         }
         catch (Exception ex)
@@ -352,7 +382,7 @@ sealed class TrayAppContext : ApplicationContext
             }
 
             SetStatus("Transcribing meeting...");
-            await _transcriber.TranscribeAsync(meeting.Folder);
+            await GetTranscriber(_settings.Transcriber).TranscribeAsync(meeting.Folder);
 
             SetStatus("Summarizing meeting...");
             await GetSummarizer(_settings.Summarizer)

@@ -6,30 +6,43 @@ using TeamsScribe.Models;
 
 namespace TeamsScribe.Services;
 
-// Whisper (ggml-base-en) via Whisper.net — splits each track into timestamped utterances.
+// Whisper via Whisper.net — splits each track into timestamped utterances.
 sealed class WhisperTranscriber
 {
-    private const string ModelName = "ggml-base-en.bin";
+    private const string ModelName = "model.bin";
 
-    private static readonly string ModelDir =
-        Path.Combine(AppDataPaths.ModelsFolder, "whisper-ggml-base-en");
+    private readonly GgmlType _type;
+    private readonly QuantizationType _quantization;
+    private readonly string _modelDir;
 
-    private static readonly string ModelFile =
-        Path.Combine(ModelDir, ModelName);
+    public WhisperTranscriber(WhisperModel model)
+    {
+        // English-only weights where they exist; the large models have no .en variant but
+        // still beat them. Medium is skipped: turbo is more accurate and faster.
+        (_type, _quantization) = model switch
+        {
+            WhisperModel.Balanced => (GgmlType.SmallEn, QuantizationType.NoQuantization),
+            WhisperModel.Accurate => (GgmlType.LargeV3Turbo, QuantizationType.Q5_0),
+            WhisperModel.MostAccurate => (GgmlType.LargeV3, QuantizationType.Q5_0),
+            _ => (GgmlType.BaseEn, QuantizationType.NoQuantization),
+        };
+
+        _modelDir = Path.Combine(AppDataPaths.ModelsFolder, $"whisper-{model}".ToLowerInvariant());
+    }
 
     public async Task EnsureModelAsync()
     {
         await ModelInstaller.EnsureAsync(
-            ModelDir,
+            _modelDir,
             [ModelName],
-            _ => WhisperGgmlDownloader.Default.GetGgmlModelAsync(GgmlType.BaseEn));
+            _ => WhisperGgmlDownloader.Default.GetGgmlModelAsync(_type, _quantization));
     }
 
     public async Task TranscribeAsync(string folder)
     {
         await EnsureModelAsync();
 
-        using var factory = WhisperFactory.FromPath(ModelFile);
+        using var factory = WhisperFactory.FromPath(Path.Combine(_modelDir, ModelName));
         using var processor = factory.CreateBuilder().WithLanguage("en").Build();
 
         var segments = new List<TranscriptSegment>();
