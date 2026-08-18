@@ -6,8 +6,8 @@ using TeamsScribe.Models;
 
 namespace TeamsScribe.Services;
 
-// Whisper (ggml-base-en) via Whisper.net — proven default, splits each track into utterances.
-sealed class WhisperTranscriber : ITranscriber
+// Whisper (ggml-base-en) via Whisper.net — splits each track into timestamped utterances.
+sealed class WhisperTranscriber
 {
     private const string ModelName = "ggml-base-en.bin";
 
@@ -54,6 +54,9 @@ sealed class WhisperTranscriber : ITranscriber
             }
         }
 
-        await Transcript.WriteAsync(folder, segments);
+        using var output = new StreamWriter(Path.Combine(folder, "transcript.txt"));
+
+        foreach (var segment in segments.OrderBy(s => s.Start))
+            await output.WriteLineAsync($"[{segment.Start:hh\\:mm\\:ss}] {segment.Speaker}: {segment.Text}");
     }
 }

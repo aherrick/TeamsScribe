@@ -12,10 +12,14 @@ namespace TeamsScribe;
 sealed class TrayAppContext : ApplicationContext
 {
     private const string RepoUrl = "https://github.com/aherrick/TeamsScribe";
-    private const int MinMeetingSeconds = 30;
-    private const int CallDetectionIntervalSeconds = 2;
-    private const int CallEndGraceSeconds = 120;
-    private const int CallEndMisses = CallEndGraceSeconds / CallDetectionIntervalSeconds;
+    private const string WatchingStatus = "Watching for meetings...";
+    private static readonly TimeSpan MinMeetingLength = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan CallPollInterval = TimeSpan.FromSeconds(2);
+
+    // Teams can briefly drop the microphone mid-call (device switches, reconnects), so wait a
+    // little before deciding a call is really over.
+    private static readonly TimeSpan CallEndGrace = TimeSpan.FromSeconds(60);
+
     private static readonly string AppVersion = typeof(TrayAppContext).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     private static readonly string MeetingsFolder = AppDataPaths.MeetingsFolder;
@@ -242,64 +246,58 @@ sealed class TrayAppContext : ApplicationContext
     {
         Recorder recorder = null;
         Meeting meeting = null;
-        var misses = 0;
+        DateTime? callEnded = null;
+        var startFailed = false;
 
-        SetStatus("Watching for meetings...");
+        SetStatus(WatchingStatus);
 
         while (!token.IsCancellationRequested)
         {
-            var inCall = TeamsDetector.IsInCall();
-
-            if (inCall && recorder == null)
+            if (TeamsDetector.IsInCall())
             {
-                var teams = TeamsDetector.FindProcess();
-
-                if (teams != null)
-                {
-                    var start = DateTime.Now;
-                    var title = MeetingNaming.Title(teams);
-                    var folder = Path.Combine(
-                        MeetingsFolder,
-                        start.ToString("yyyy-MM-dd"),
-                        MeetingNaming.FolderName(start, title));
-                    Directory.CreateDirectory(folder);
-
-                    meeting = new Meeting(title, folder, start);
-
-                    recorder = new Recorder();
-                    await recorder.StartAsync(folder);
-
-                    SetStatus("Recording meeting...", balloon: true);
-                    SetRecording(true);
-                }
-            }
-
-            if (inCall)
-            {
-                if (misses > 0)
+                if (callEnded != null)
                     AppLog.Write("Teams call detected again; continuing recording.");
 
-                misses = 0;
-            }
-            else if (recorder != null)
-            {
-                misses++;
+                callEnded = null;
 
-                if (misses == 1)
-                    AppLog.Write($"Teams call no longer detected; waiting {CallEndGraceSeconds}s before stopping recording.");
-
-                if (misses >= CallEndMisses)
+                if (recorder == null && !startFailed)
                 {
-                    AppLog.Write("Teams call remained undetected; stopping recording.");
-                    await ProcessMeetingAsync(recorder, meeting);
-                    recorder = null;
-                    SetStatus("Watching for meetings...");
+                    try
+                    {
+                        (recorder, meeting) = await StartMeetingAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        startFailed = true; // don't retry until the current call ends
+                        recorder = null;
+                        AppLog.Write("Failed to start recording.", ex);
+                        SetStatus("Recording failed: " + ex.Message, balloon: true);
+                    }
+                }
+            }
+            else
+            {
+                startFailed = false;
+
+                if (recorder != null)
+                {
+                    callEnded ??= LogCallEnded();
+
+                    // Teams being gone is final; no need to wait out the grace period.
+                    if (DateTime.Now - callEnded >= CallEndGrace || !TeamsDetector.IsRunning())
+                    {
+                        await ProcessMeetingAsync(recorder, meeting, callEnded.Value);
+                        recorder = null;
+                        meeting = null;
+                        callEnded = null;
+                        SetStatus(WatchingStatus);
+                    }
                 }
             }
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(CallDetectionIntervalSeconds), token);
+                await Task.Delay(CallPollInterval, token);
             }
             catch (OperationCanceledException)
             {
@@ -310,22 +308,45 @@ sealed class TrayAppContext : ApplicationContext
         if (recorder != null)
         {
             SetStatus("Finishing recording...");
-            await ProcessMeetingAsync(recorder, meeting);
+            await ProcessMeetingAsync(recorder, meeting, callEnded ?? DateTime.Now);
         }
     }
 
-    private async Task ProcessMeetingAsync(Recorder recorder, Meeting meeting)
+    private async Task<(Recorder Recorder, Meeting Meeting)> StartMeetingAsync()
+    {
+        var start = DateTime.Now;
+        var title = TeamsDetector.MeetingTitle();
+        var folder = Path.Combine(
+            MeetingsFolder,
+            start.ToString("yyyy-MM-dd"),
+            MeetingNaming.FolderName(start, title));
+        Directory.CreateDirectory(folder);
+
+        var recorder = new Recorder();
+        await recorder.StartAsync(folder);
+
+        SetStatus($"Recording {title ?? "meeting"}...", balloon: true);
+        SetRecording(true);
+
+        return (recorder, new Meeting(title, folder, start));
+    }
+
+    private static DateTime LogCallEnded()
+    {
+        AppLog.Write($"Teams call no longer detected; waiting {CallEndGrace.TotalSeconds:0}s before stopping recording.");
+        return DateTime.Now;
+    }
+
+    private async Task ProcessMeetingAsync(Recorder recorder, Meeting meeting, DateTime end)
     {
         try
         {
             await recorder.StopAsync();
             SetRecording(false);
 
-            var end = DateTime.Now;
-            var duration = end - meeting.Start;
-
-            if (duration.TotalSeconds < MinMeetingSeconds)
+            if (end - meeting.Start < MinMeetingLength)
             {
+                AppLog.Write("Meeting was too short to keep; discarding recording.");
                 MeetingNaming.TryDelete(meeting.Folder);
                 return;
             }

@@ -7,8 +7,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>disable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
-    <!-- UseWPF references System.Windows.Automation (UI Automation) for meeting detection. -->
-    <UseWPF>true</UseWPF>
     <ApplicationIcon>icons\teamsscribe_recording.ico</ApplicationIcon>
   </PropertyGroup>
 
